@@ -1,0 +1,14 @@
+{
+  "name": "待办清单 Pro",
+  "short_name": "待办 Pro",
+  "description": "功能完整的待办清单、番茄钟、日历、看板、笔记、思维导图",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#09101a",
+  "theme_color": "#09101a",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
