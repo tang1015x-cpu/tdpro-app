@@ -1,0 +1,92 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Add Android platform
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Copy app icon and splash
+        run: |
+          # Copy generated icons to Android resource dirs
+          MIPMAP_BASE="android/app/src/main/res"
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p "$MIPMAP_BASE/mipmap-$density"
+          done
+          # Copy icons if they exist
+          [ -f res/icons/icon-48.png  ] && cp res/icons/icon-48.png  "$MIPMAP_BASE/mipmap-mdpi/ic_launcher.png"
+          [ -f res/icons/icon-72.png  ] && cp res/icons/icon-72.png  "$MIPMAP_BASE/mipmap-hdpi/ic_launcher.png"
+          [ -f res/icons/icon-96.png  ] && cp res/icons/icon-96.png  "$MIPMAP_BASE/mipmap-xhdpi/ic_launcher.png"
+          [ -f res/icons/icon-144.png ] && cp res/icons/icon-144.png "$MIPMAP_BASE/mipmap-xxhdpi/ic_launcher.png"
+          [ -f res/icons/icon-192.png ] && cp res/icons/icon-192.png "$MIPMAP_BASE/mipmap-xxxhdpi/ic_launcher.png"
+          # Round icons
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            src="$MIPMAP_BASE/mipmap-$density/ic_launcher.png"
+            [ -f "$src" ] && cp "$src" "$MIPMAP_BASE/mipmap-$density/ic_launcher_round.png"
+          done
+          # Splash screen
+          if [ -f res/icons/splash.png ]; then
+            mkdir -p "$MIPMAP_BASE/drawable"
+            cp res/icons/splash.png "$MIPMAP_BASE/drawable/splash.png"
+          fi
+
+      - name: Patch Android theme (immersive status bar)
+        run: |
+          STYLE_FILE="android/app/src/main/res/values/styles.xml"
+          if [ -f "$STYLE_FILE" ]; then
+            # Ensure status bar color is set
+            sed -i 's|<style name="AppTheme"|<style name="AppTheme"|' "$STYLE_FILE" || true
+          fi
+          # Patch AndroidManifest for edge-to-edge
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            sed -i 's|android:theme="@style/AppTheme"|android:theme="@style/AppTheme" android:windowSoftInputMode="adjustResize"|' "$MANIFEST" || true
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tail -40
+
+      - name: Rename APK
+        run: |
+          find android -name "*.apk" -type f
+          cp android/app/build/outputs/apk/debug/app-debug.apk 待办清单Pro-v1.0.apk 2>/dev/null || \
+          find android -name "*.apk" -exec cp {} 待办清单Pro-v1.0.apk \; 2>/dev/null || true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 待办清单Pro-APK
+          path: 待办清单Pro-v1.0.apk
+          retention-days: 30
